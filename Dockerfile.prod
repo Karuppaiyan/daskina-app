@@ -1,0 +1,39 @@
+# Production image for Daksina ERP (Next.js 14 + Prisma 6 + PostgreSQL)
+# Build:  docker build -f Dockerfile.prod -t daksina-erp:prod .
+FROM node:20-bookworm-slim AS base
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+# 1. install dependencies
+FROM base AS deps
+COPY package*.json ./
+COPY prisma ./prisma
+RUN npm ci
+
+# 2. generate Prisma client + build Next.js
+FROM base AS build
+ENV NEXT_TELEMETRY_DISABLED=1
+# dummy value only so build-time tooling can read the schema; the real one comes from the host at runtime
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+# 3. runtime image
+FROM base AS runner
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/next.config.mjs ./next.config.mjs
+RUN mkdir -p /var/data/uploads
+EXPOSE 3000
+
+# apply pending migrations, then start (Render sets PORT)
+CMD ["sh", "-c", "npx prisma migrate deploy && npx next start -H 0.0.0.0 -p ${PORT:-3000}"]

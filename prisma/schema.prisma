@@ -1,0 +1,893 @@
+// Daksina ERP – Phase 1 schema (PostgreSQL)
+// Phase 1: auth/roles, projects/sites, employees, attendance, leave, OT,
+// payroll, advances, site expenses, DPR + photos, audit log
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── ENUMS ─────────────
+
+enum Role {
+  OWNER
+  PROJECT_MANAGER
+  SITE_SUPERVISOR
+  HR
+  ACCOUNTS
+  PURCHASE_MANAGER
+  EMPLOYEE
+}
+
+enum EmployeeType {
+  PERMANENT
+  CONTRACT
+  SUBCONTRACT
+}
+
+enum WageType {
+  DAILY
+  MONTHLY
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  WEEKLY_OFF
+  HOLIDAY
+  HALF_DAY
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DeductionMode {
+  FULL
+  PARTIAL
+  INSTALLMENT
+}
+
+enum AdvanceStatus {
+  OPEN
+  CLOSED
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+enum ExpenseCategory {
+  LABOUR
+  DIESEL
+  MATERIAL
+  TRANSPORT
+  EQUIPMENT
+  FOOD
+  ACCOMMODATION
+  REPAIRS
+  PETTY_CASH
+  SUBCONTRACTOR
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK
+  UPI
+  CARD
+  CHEQUE
+}
+
+enum MediaStage {
+  BEFORE
+  DURING
+  COMPLETED
+}
+
+enum MediaType {
+  PHOTO
+  VIDEO
+  DOCUMENT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+// ───────────── USERS ─────────────
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  role         Role
+  isActive     Boolean   @default(true)
+  employeeId   String?   @unique
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  managedProjects Project[]  @relation("ProjectManager")
+  supervisedSites Site[]     @relation("SiteSupervisor")
+  auditLogs       AuditLog[]
+  dprs            Dpr[]
+  expensesCreated Expense[]  @relation("ExpenseCreatedBy")
+  expensesApproved Expense[] @relation("ExpenseApprovedBy")
+  advancesApproved Advance[]
+  leavesApproved  LeaveRequest[]
+}
+
+// ───────────── CUSTOMER / PROJECT / SITE ─────────────
+
+model Customer {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  contact   String?
+  phone     String?
+  email     String?
+  gstin     String?
+  address   String?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  projects Project[]
+}
+
+model Project {
+  id              String        @id @default(cuid())
+  code            String        @unique
+  name            String
+  customerId      String
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  poNumber        String?
+  contractValue   Decimal       @default(0) @db.Decimal(14, 2)
+  startDate       DateTime?     @db.Date
+  expectedEndDate DateTime?     @db.Date
+  scopeOfWork     String?
+  status          ProjectStatus @default(PLANNED)
+  progressPct     Decimal       @default(0) @db.Decimal(5, 2)
+  managerId       String?
+  manager         User?         @relation("ProjectManager", fields: [managerId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  sites Site[]
+  documents Document[]
+
+  @@unique([customerId, poNumber])
+  @@index([status])
+}
+
+model Site {
+  id           String    @id @default(cuid())
+  projectId    String?
+  project      Project?  @relation(fields: [projectId], references: [id])
+  name         String
+  location     String?
+  supervisorId String?
+  supervisor   User?     @relation("SiteSupervisor", fields: [supervisorId], references: [id])
+  isWorkshop   Boolean   @default(false)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  devices        Device[]
+  employees      Employee[]
+  siteHistory    EmployeeSiteHistory[]
+  attendance     Attendance[]
+  expenses       Expense[]
+  dprs           Dpr[]
+  payrollAllocs  PayrollSiteAllocation[]
+  stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts  GoodsReceipt[]
+  equipment      Equipment[]
+  equipmentLogs  EquipmentLog[]
+  equipmentMaintenance EquipmentMaintenance[]
+  documents      Document[]
+
+  @@index([projectId])
+}
+
+model Device {
+  id         String       @id @default(cuid())
+  deviceCode String       @unique
+  name       String?
+  siteId     String
+  site       Site         @relation(fields: [siteId], references: [id])
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+
+  attendance Attendance[]
+}
+
+// ───────────── EMPLOYEES ─────────────
+
+model Employee {
+  id           String         @id @default(cuid())
+  empCode      String         @unique
+  name         String
+  photoUrl     String?
+  phone        String?
+  designation  String?
+  trade        String?
+  type         EmployeeType   @default(PERMANENT)
+  status       EmployeeStatus @default(ACTIVE)
+  joiningDate  DateTime?      @db.Date
+  currentSiteId String?
+  currentSite  Site?          @relation(fields: [currentSiteId], references: [id])
+  supervisorId String?
+  supervisor   Employee?      @relation("EmployeeSupervisor", fields: [supervisorId], references: [id])
+  reports      Employee[]     @relation("EmployeeSupervisor")
+
+  // Pay config
+  wageType     WageType       @default(DAILY)
+  wageRate     Decimal        @default(0) @db.Decimal(10, 2) // per day or per month
+  regularHours Decimal        @default(8) @db.Decimal(4, 2)
+  otRate       Decimal        @default(0) @db.Decimal(10, 2) // per hour
+  holidayRate  Decimal?       @db.Decimal(10, 2)
+
+  // Bank / ID
+  bankName      String?
+  accountNumber String?
+  ifsc          String?
+  faceId        String?       @unique // biometric template/reference ID
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  user         User?
+  siteHistory  EmployeeSiteHistory[]
+  attendance   Attendance[]
+  leaveBalances LeaveBalance[]
+  leaveRequests LeaveRequest[]
+  advances     Advance[]
+  payrolls     Payroll[]
+  documents    EmployeeDocument[]
+  spentExpenses Expense[]
+  operatedEquipment Equipment[]
+  equipmentLogs     EquipmentLog[]
+
+  @@index([status])
+  @@index([currentSiteId])
+  @@index([phone])
+}
+
+model EmployeeDocument {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  docType    String // Aadhaar, PAN, Licence, etc.
+  url        String
+  uploadedAt DateTime @default(now())
+}
+
+model EmployeeSiteHistory {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  siteId     String
+  site       Site      @relation(fields: [siteId], references: [id])
+  fromDate   DateTime  @db.Date
+  toDate     DateTime? @db.Date
+  createdAt  DateTime  @default(now())
+
+  @@index([employeeId, fromDate])
+  @@index([siteId])
+}
+
+// ───────────── ATTENDANCE ─────────────
+
+model Attendance {
+  id          String           @id @default(cuid())
+  employeeId  String
+  employee    Employee         @relation(fields: [employeeId], references: [id])
+  siteId      String
+  site        Site             @relation(fields: [siteId], references: [id])
+  deviceId    String?
+  device      Device?          @relation(fields: [deviceId], references: [id])
+  date        DateTime         @db.Date
+  checkIn     DateTime?
+  checkOut    DateTime?
+  workedHours Decimal          @default(0) @db.Decimal(5, 2)
+  otHours     Decimal          @default(0) @db.Decimal(5, 2)
+  status      AttendanceStatus @default(PRESENT)
+  source      String           @default("DEVICE") // DEVICE | MANUAL
+  remarks     String?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // One record per employee per day = no duplicate attendance
+  @@unique([employeeId, date])
+  @@index([siteId, date])
+  @@index([date])
+}
+
+// ───────────── LEAVE ─────────────
+
+model LeaveType {
+  id          String  @id @default(cuid())
+  name        String  @unique // Casual, Sick, Earned, Unpaid
+  isPaid      Boolean @default(true)
+  yearlyQuota Decimal @default(0) @db.Decimal(5, 1)
+
+  balances LeaveBalance[]
+  requests LeaveRequest[]
+}
+
+model LeaveBalance {
+  id          String    @id @default(cuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+  year        Int
+  allotted    Decimal   @default(0) @db.Decimal(5, 1)
+  used        Decimal   @default(0) @db.Decimal(5, 1)
+
+  @@unique([employeeId, leaveTypeId, year])
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  employeeId   String
+  employee     Employee    @relation(fields: [employeeId], references: [id])
+  leaveTypeId  String
+  leaveType    LeaveType   @relation(fields: [leaveTypeId], references: [id])
+  fromDate     DateTime    @db.Date
+  toDate       DateTime    @db.Date
+  days         Decimal     @db.Decimal(4, 1)
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  approvedById String?
+  approvedBy   User?       @relation(fields: [approvedById], references: [id])
+  createdAt    DateTime    @default(now())
+
+  @@index([employeeId, fromDate])
+}
+
+// ───────────── ADVANCES ─────────────
+
+model Advance {
+  id                String         @id @default(cuid())
+  employeeId        String
+  employee          Employee       @relation(fields: [employeeId], references: [id])
+  date              DateTime       @db.Date
+  amount            Decimal        @db.Decimal(12, 2)
+  balance           Decimal        @db.Decimal(12, 2)
+  deductionMode     DeductionMode  @default(FULL)
+  installmentAmount Decimal?       @db.Decimal(12, 2)
+  reason            String?
+  approvalStatus    ApprovalStatus @default(PENDING)
+  approvedById      String?
+  approvedBy        User?          @relation(fields: [approvedById], references: [id])
+  status            AdvanceStatus  @default(OPEN)
+  createdAt         DateTime       @default(now())
+
+  recoveries AdvanceRecovery[]
+
+  @@index([employeeId, status])
+}
+
+model AdvanceRecovery {
+  id        String   @id @default(cuid())
+  advanceId String
+  advance   Advance  @relation(fields: [advanceId], references: [id])
+  payrollId String
+  payroll   Payroll  @relation(fields: [payrollId], references: [id])
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  @@unique([advanceId, payrollId])
+}
+
+// ───────────── PAYROLL ─────────────
+
+model Payroll {
+  id               String        @id @default(cuid())
+  employeeId       String
+  employee         Employee      @relation(fields: [employeeId], references: [id])
+  month            Int // 1-12
+  year             Int
+  presentDays      Decimal       @default(0) @db.Decimal(5, 1)
+  absentDays       Decimal       @default(0) @db.Decimal(5, 1)
+  leaveDays        Decimal       @default(0) @db.Decimal(5, 1)
+  regularHours     Decimal       @default(0) @db.Decimal(7, 2)
+  otHours          Decimal       @default(0) @db.Decimal(7, 2)
+  basicPay         Decimal       @default(0) @db.Decimal(12, 2)
+  otPay            Decimal       @default(0) @db.Decimal(12, 2)
+  otherEarnings    Decimal       @default(0) @db.Decimal(12, 2)
+  grossPay         Decimal       @default(0) @db.Decimal(12, 2)
+  advanceDeduction Decimal       @default(0) @db.Decimal(12, 2)
+  otherDeductions  Decimal       @default(0) @db.Decimal(12, 2)
+  netPay           Decimal       @default(0) @db.Decimal(12, 2)
+  status           PayrollStatus @default(DRAFT)
+  paidOn           DateTime?     @db.Date
+  paymentMethod    PaymentMethod?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  siteAllocations PayrollSiteAllocation[]
+  recoveries      AdvanceRecovery[]
+
+  // One payroll per employee per month
+  @@unique([employeeId, month, year])
+  @@index([year, month])
+}
+
+// Project-wise labour cost: splits an employee's pay across sites by attendance
+model PayrollSiteAllocation {
+  id        String  @id @default(cuid())
+  payrollId String
+  payroll   Payroll @relation(fields: [payrollId], references: [id])
+  siteId    String
+  site      Site    @relation(fields: [siteId], references: [id])
+  days      Decimal @db.Decimal(5, 1)
+  hours     Decimal @db.Decimal(7, 2)
+  amount    Decimal @db.Decimal(12, 2)
+
+  @@unique([payrollId, siteId])
+  @@index([siteId])
+}
+
+// ───────────── SITE EXPENSES ─────────────
+
+model Expense {
+  id            String          @id @default(cuid())
+  siteId        String
+  site          Site            @relation(fields: [siteId], references: [id])
+  date          DateTime        @db.Date
+  category      ExpenseCategory
+  description   String?
+  amount        Decimal         @db.Decimal(12, 2)
+  spentById     String?
+  spentBy       Employee?       @relation(fields: [spentById], references: [id])
+  paymentMethod PaymentMethod   @default(CASH)
+  receiptUrl    String?
+  status        ApprovalStatus  @default(PENDING)
+  createdById   String
+  createdBy     User            @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  approvedById  String?
+  approvedBy    User?           @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  deviceId      String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+
+  // Non-unique on purpose: check in code and WARN before accepting a likely duplicate
+  @@index([siteId, date, category, amount])
+  @@index([date])
+}
+
+// ───────────── DAILY PROGRESS REPORT ─────────────
+
+model Dpr {
+  id             String    @id @default(cuid())
+  siteId         String
+  site           Site      @relation(fields: [siteId], references: [id])
+  date           DateTime  @db.Date
+  workItems      Json // [{ item, qty, unit, area }]
+  manpowerCount  Int       @default(0)
+  equipmentUsed  Json? // [{ name, hours }]
+  materialsUsed  Json? // [{ name, qty, unit }]
+  delays         String?
+  delayReason    String?
+  safetyIssues   String?
+  tomorrowPlan   String?
+  submittedById  String
+  submittedBy    User      @relation(fields: [submittedById], references: [id])
+  deviceId       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  media DprMedia[]
+
+  // One DPR per site per day = no duplicate DPR
+  @@unique([siteId, date])
+}
+
+model DprMedia {
+  id           String     @id @default(cuid())
+  dprId        String
+  dpr          Dpr        @relation(fields: [dprId], references: [id])
+  type         MediaType  @default(PHOTO)
+  stage        MediaStage @default(DURING)
+  url          String
+  uploadedById String
+  uploadedAt   DateTime   @default(now())
+}
+
+// ───────────── AUDIT LOG ─────────────
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  tableName String
+  recordId  String
+  action    AuditAction
+  oldValue  Json?
+  newValue  Json?
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  deviceId  String?
+  siteId    String?
+  createdAt DateTime    @default(now())
+
+  @@index([tableName, recordId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+
+// ═════════════ PHASE 2 ═════════════
+
+enum POStatus {
+  DRAFT
+  ISSUED
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
+enum StockMoveType {
+  RECEIPT
+  ISSUE
+  RETURN
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+}
+
+enum EquipmentType {
+  CRANE
+  FARANA
+  BOOM_LIFT
+  VEHICLE
+  WELDING_MACHINE
+  OTHER
+}
+
+enum Ownership {
+  OWNED
+  RENTED
+}
+
+enum EquipmentStatus {
+  ACTIVE
+  IDLE
+  BREAKDOWN
+  MAINTENANCE
+}
+
+enum MaintenanceType {
+  SERVICE
+  BREAKDOWN
+  REPAIR
+}
+
+enum DocCategory {
+  PO_WORK_ORDER
+  SITE_DRAWING
+  STRUCTURAL_DRAWING
+  FABRICATION_DRAWING
+  APPROVED_DRAWING
+  REVISED_DRAWING
+  METHOD_STATEMENT
+  SAFETY
+  DAILY_REPORT
+  SITE_PHOTO
+  MEASUREMENT
+  BILL
+  INVOICE
+  OTHER
+}
+
+enum DocStatus {
+  DRAFT
+  APPROVED
+  SUPERSEDED
+}
+
+// ───────────── SUPPLIERS / MATERIALS ─────────────
+
+model Supplier {
+  id            String    @id @default(cuid())
+  name          String    @unique
+  contactPerson String?
+  phone         String?
+  email         String?
+  gstin         String?
+  address       String?
+  products      String?
+  creditDays    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  quotations     Quotation[]
+  purchaseOrders PurchaseOrder[]
+  receipts       GoodsReceipt[]
+}
+
+model Material {
+  id        String    @id @default(cuid())
+  name      String
+  spec      String    @default("")
+  unit      String
+  minStock  Decimal   @default(0) @db.Decimal(12, 3)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  quotations   Quotation[]
+  poItems      PurchaseOrderItem[]
+  receiptItems GoodsReceiptItem[]
+  stock        StockMovement[]
+
+  @@unique([name, spec])
+}
+
+model Quotation {
+  id           String    @id @default(cuid())
+  materialId   String
+  material     Material  @relation(fields: [materialId], references: [id])
+  supplierId   String
+  supplier     Supplier  @relation(fields: [supplierId], references: [id])
+  date         DateTime  @db.Date
+  qty          Decimal   @default(1) @db.Decimal(12, 3)
+  basicRate    Decimal   @db.Decimal(12, 2)
+  transport    Decimal   @default(0) @db.Decimal(12, 2)
+  gstPct       Decimal   @default(0) @db.Decimal(5, 2)
+  otherCharges Decimal   @default(0) @db.Decimal(12, 2)
+  validUntil   DateTime? @db.Date
+  remarks      String?
+  createdById  String
+  createdAt    DateTime  @default(now())
+
+  @@index([materialId, date])
+  @@index([supplierId])
+}
+
+// ───────────── PURCHASE ORDERS / GOODS RECEIPT ─────────────
+
+model PurchaseOrder {
+  id           String     @id @default(cuid())
+  poNumber     String     @unique
+  supplierId   String
+  supplier     Supplier   @relation(fields: [supplierId], references: [id])
+  siteId       String
+  site         Site       @relation(fields: [siteId], references: [id])
+  date         DateTime   @db.Date
+  expectedDate DateTime?  @db.Date
+  status       POStatus   @default(DRAFT)
+  transport    Decimal    @default(0) @db.Decimal(12, 2)
+  otherCharges Decimal    @default(0) @db.Decimal(12, 2)
+  notes        String?
+  createdById  String
+  approvedById String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  items    PurchaseOrderItem[]
+  receipts GoodsReceipt[]
+
+  @@index([status])
+  @@index([supplierId])
+  @@index([siteId])
+}
+
+model PurchaseOrderItem {
+  id          String   @id @default(cuid())
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id])
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
+  qty         Decimal  @db.Decimal(12, 3)
+  rate        Decimal  @db.Decimal(12, 2)
+  gstPct      Decimal  @default(0) @db.Decimal(5, 2)
+  receivedQty Decimal  @default(0) @db.Decimal(12, 3)
+
+  receiptItems GoodsReceiptItem[]
+
+  @@unique([poId, materialId])
+}
+
+model GoodsReceipt {
+  id          String   @id @default(cuid())
+  grnNumber   String   @unique
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id])
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  siteId      String
+  site        Site     @relation(fields: [siteId], references: [id])
+  date        DateTime @db.Date
+  invoiceNo   String?
+  vehicleNo   String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  items GoodsReceiptItem[]
+
+  // Same supplier invoice cannot be received twice
+  @@unique([supplierId, invoiceNo])
+  @@index([poId])
+}
+
+model GoodsReceiptItem {
+  id          String   @id @default(cuid())
+  grnId       String
+  grn         GoodsReceipt @relation(fields: [grnId], references: [id])
+  poItemId    String
+  poItem      PurchaseOrderItem @relation(fields: [poItemId], references: [id])
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
+  receivedQty Decimal  @db.Decimal(12, 3)
+  rejectedQty Decimal  @default(0) @db.Decimal(12, 3)
+  remarks     String?
+}
+
+// ───────────── STOCK LEDGER (qty is signed; balance = SUM(qty)) ─────────────
+
+model StockMovement {
+  id           String        @id @default(cuid())
+  siteId       String
+  site         Site          @relation(fields: [siteId], references: [id])
+  materialId   String
+  material     Material      @relation(fields: [materialId], references: [id])
+  type         StockMoveType
+  qty          Decimal       @db.Decimal(12, 3)
+  rate         Decimal?      @db.Decimal(12, 2)
+  date         DateTime      @db.Date
+  refType      String?
+  refId        String?
+  remarks      String?
+  createdById  String
+  authorizedById String?
+  createdAt    DateTime      @default(now())
+
+  @@index([siteId, materialId])
+  @@index([materialId])
+  @@index([date])
+}
+
+// ───────────── EQUIPMENT ─────────────
+
+model Equipment {
+  id              String          @id @default(cuid())
+  code            String          @unique
+  name            String
+  type            EquipmentType   @default(OTHER)
+  regNo           String?
+  ownership       Ownership       @default(OWNED)
+  rentalRate      Decimal?        @db.Decimal(12, 2)
+  rentalUnit      String?
+  currentSiteId   String?
+  currentSite     Site?           @relation(fields: [currentSiteId], references: [id])
+  operatorId      String?
+  operator        Employee?       @relation(fields: [operatorId], references: [id])
+  status          EquipmentStatus @default(ACTIVE)
+  nextServiceDate DateTime?       @db.Date
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  logs        EquipmentLog[]
+  maintenance EquipmentMaintenance[]
+}
+
+model EquipmentLog {
+  id           String    @id @default(cuid())
+  equipmentId  String
+  equipment    Equipment @relation(fields: [equipmentId], references: [id])
+  siteId       String
+  site         Site      @relation(fields: [siteId], references: [id])
+  date         DateTime  @db.Date
+  workingHours Decimal   @default(0) @db.Decimal(5, 2)
+  idleHours    Decimal   @default(0) @db.Decimal(5, 2)
+  dieselLitres Decimal   @default(0) @db.Decimal(8, 2)
+  dieselCost   Decimal   @default(0) @db.Decimal(12, 2)
+  operatorId   String?
+  operator     Employee? @relation(fields: [operatorId], references: [id])
+  remarks      String?
+  createdById  String
+  createdAt    DateTime  @default(now())
+
+  // One log per equipment per day
+  @@unique([equipmentId, date])
+  @@index([siteId, date])
+}
+
+model EquipmentMaintenance {
+  id              String          @id @default(cuid())
+  equipmentId     String
+  equipment       Equipment       @relation(fields: [equipmentId], references: [id])
+  siteId          String?
+  site            Site?           @relation(fields: [siteId], references: [id])
+  date            DateTime        @db.Date
+  type            MaintenanceType
+  description     String?
+  cost            Decimal         @default(0) @db.Decimal(12, 2)
+  nextServiceDate DateTime?       @db.Date
+  createdById     String
+  createdAt       DateTime        @default(now())
+
+  @@index([equipmentId, date])
+}
+
+// ───────────── DRAWINGS & DOCUMENTS ─────────────
+
+model Document {
+  id          String      @id @default(cuid())
+  siteId      String
+  site        Site        @relation(fields: [siteId], references: [id])
+  projectId   String?
+  project     Project?    @relation(fields: [projectId], references: [id])
+  category    DocCategory
+  title       String
+  docNumber   String?
+  createdById String
+  createdAt   DateTime    @default(now())
+  deletedAt   DateTime?
+
+  versions DocumentVersion[]
+
+  @@index([siteId, category])
+}
+
+model DocumentVersion {
+  id            String    @id @default(cuid())
+  documentId    String
+  document      Document  @relation(fields: [documentId], references: [id])
+  version       Int
+  revisionLabel String?
+  url           String
+  fileName      String
+  sizeBytes     Int
+  status        DocStatus @default(DRAFT)
+  note          String?
+  uploadedById  String
+  approvedById  String?
+  uploadedAt    DateTime  @default(now())
+  approvedAt    DateTime?
+
+  @@unique([documentId, version])
+}

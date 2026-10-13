@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.dark { color-scheme: dark; }
+body { background-color: #f9fafb; color: #111827; @apply antialiased; }
+.dark body { @apply bg-gray-900 text-gray-200; }
+
+/* ───────── Flowbite-style skin for every page rendered inside the dashboard shell ─────────
+   (plain CSS values are used for colours that are also overridden by class below,
+    because Tailwind cannot @apply a utility that this file also selects) */
+
+/* page root: the shell already provides padding and width */
+#app-main > div { max-width: none; padding: 0; }
+
+/* headings */
+#app-main h1 { color: #111827; @apply text-xl font-semibold sm:text-2xl; }
+#app-main h2 { color: #111827; @apply text-base font-semibold; }
+#app-main h3 { color: #111827; @apply text-sm font-semibold; }
+.dark #app-main h1, .dark #app-main h2, .dark #app-main h3 { color: #fff; }
+
+/* sections become Flowbite cards */
+#app-main section {
+  background-color: #fff; border: 1px solid #e5e7eb;
+  @apply rounded-lg shadow-sm p-4 sm:p-6 overflow-x-auto;
+}
+.dark #app-main section { background-color: rgb(31 41 55); border-color: rgb(55 65 81); }
+#app-main section.plain { background-color: transparent; border-width: 0; @apply shadow-none p-0 overflow-visible; }
+.dark #app-main section.plain { background-color: transparent; }
+
+/* tables */
+#app-main table { color: #6b7280; border-width: 0; @apply w-full text-sm text-left; }
+#app-main thead { color: #374151; background-color: #f9fafb; @apply text-xs uppercase; }
+#app-main tfoot { color: #111827; background-color: #f9fafb; }
+#app-main th, #app-main td { padding: 0.75rem 1rem; }
+#app-main tbody tr:hover { background-color: rgb(249 250 251); }
+.dark #app-main table { color: #9ca3af; }
+.dark #app-main thead, .dark #app-main tfoot { background-color: rgb(55 65 81); color: #d1d5db; }
+.dark #app-main tbody tr:hover { background-color: rgb(55 65 81 / 0.5); }
+.dark #app-main tr, .dark #app-main .border, .dark #app-main .border-t { border-color: rgb(55 65 81); }
+
+/* form controls */
+#app-main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+#app-main select,
+#app-main textarea {
+  background-color: #f9fafb; border: 1px solid #d1d5db; color: #111827;
+  @apply text-sm rounded-lg;
+}
+#app-main input:focus, #app-main select:focus, #app-main textarea:focus {
+  @apply outline-none ring-1 ring-primary-500 border-primary-500;
+}
+#app-main input::placeholder, #app-main textarea::placeholder { color: #9ca3af; }
+#app-main input:disabled, #app-main select:disabled { background-color: #f3f4f6; @apply cursor-not-allowed opacity-60; }
+#app-main input[type="checkbox"], #app-main input[type="radio"] { accent-color: #1c64f2; }
+#app-main input[type="file"] { color: #6b7280; @apply text-sm; }
+.dark #app-main input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+.dark #app-main select,
+.dark #app-main textarea { background-color: rgb(55 65 81); border-color: rgb(75 85 99); color: #fff; }
+.dark #app-main input:disabled, .dark #app-main select:disabled { background-color: rgb(75 85 99); }
+.dark #app-main input[type="file"] { color: #9ca3af; }
+
+/* buttons: map the existing colours to Flowbite variants */
+#app-main button { @apply font-medium rounded-lg text-sm transition-colors; }
+#app-main button:disabled { @apply opacity-50 cursor-not-allowed; }
+#app-main button.bg-blue-600 { @apply text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 focus:outline-none; }
+#app-main button.bg-green-600 { @apply text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 focus:outline-none; }
+#app-main button.bg-red-600 { @apply text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 focus:outline-none; }
+#app-main button.bg-gray-700 { @apply text-white bg-gray-800 hover:bg-gray-900 focus:ring-4 focus:ring-gray-300 focus:outline-none; }
+#app-main button.bg-purple-600 { @apply text-white bg-purple-700 hover:bg-purple-800 focus:ring-4 focus:ring-purple-300 focus:outline-none; }
+#app-main button.border { background-color: #fff; color: #111827; border-color: #e5e7eb; @apply focus:ring-4 focus:ring-gray-200 focus:outline-none; }
+#app-main button.border:hover { background-color: #f3f4f6; color: #1a56db; }
+.dark #app-main button.border { background-color: rgb(31 41 55); color: #9ca3af; border-color: rgb(75 85 99); }
+.dark #app-main button.border:hover { background-color: rgb(55 65 81); color: #fff; }
+#app-main .text-blue-600 { color: #1a56db; }
+
+/* alert messages */
+#app-main .bg-yellow-100 {
+  background-color: #fefce8; color: #854d0e; border: 1px solid #fde047; border-radius: 0.5rem; padding: 1rem;
+}
+
+/* status text in table cells (set by the shell) */
+#app-main td[data-status] { font-weight: 600; font-size: 0.75rem; letter-spacing: 0.02em; white-space: nowrap; }
+#app-main td[data-status]::before { content: "\25CF"; margin-right: 0.4rem; font-size: 0.6rem; }
+#app-main td[data-status="ok"] { color: #046c4e; }
+#app-main td[data-status="warn"] { color: #9f580a; }
+#app-main td[data-status="bad"] { color: #c81e1e; }
+#app-main td[data-status="info"] { color: #1a56db; }
+#app-main td[data-status="gray"] { color: #6b7280; }
+.dark #app-main td[data-status="ok"] { color: #31c48d; }
+.dark #app-main td[data-status="warn"] { color: #faca15; }
+.dark #app-main td[data-status="bad"] { color: #f98080; }
+.dark #app-main td[data-status="info"] { color: #76a9fa; }
+.dark #app-main td[data-status="gray"] { color: #9ca3af; }
+
+/* dark mode for the colour utilities already used on the pages */
+.dark #app-main .bg-white { background-color: rgb(31 41 55); }
+.dark #app-main .bg-gray-50, .dark #app-main .bg-gray-100 { background-color: rgb(55 65 81); }
+.dark #app-main .bg-blue-50 { background-color: rgb(30 58 138 / 0.3); }
+.dark #app-main .bg-green-50 { background-color: rgb(20 83 45 / 0.3); }
+.dark #app-main .bg-red-50 { background-color: rgb(127 29 29 / 0.25); }
+.dark #app-main .bg-orange-50 { background-color: rgb(124 45 18 / 0.3); }
+.dark #app-main .bg-yellow-50, .dark #app-main .bg-yellow-100 { background-color: rgb(113 63 18 / 0.3); color: #fde68a; border-color: rgb(133 77 14); }
+.dark #app-main .text-gray-900 { color: #fff; }
+.dark #app-main .text-gray-700, .dark #app-main .text-gray-600, .dark #app-main .text-gray-500 { color: #9ca3af; }
+.dark #app-main .text-gray-400 { color: #6b7280; }
+.dark #app-main .text-red-600 { color: #f87171; }
+.dark #app-main .text-green-700 { color: #4ade80; }
+.dark #app-main .text-orange-600 { color: #fb923c; }
+.dark #app-main .text-blue-600 { color: #60a5fa; }
