@@ -27,6 +27,7 @@ const ICONS = {
   suppliers: <Ico><path d="M2 6h11v10H2z" /><path d="M13 9h4l4 4v3h-8z" /><circle cx="6.5" cy="18" r="1.8" /><circle cx="17" cy="18" r="1.8" /></Ico>,
   orders: <Ico><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4h6v3H9z" /><path d="M9 12h6M9 16h4" /></Ico>,
   stock: <Ico><path d="M12 3 3 7.5v9L12 21l9-4.5v-9z" /><path d="M3 7.5 12 12l9-4.5M12 12v9" /></Ico>,
+  users: <Ico><path d="M12 3 4 6v6c0 4.4 3.1 7.6 8 9 4.9-1.4 8-4.6 8-9V6z" /><path d="m9 12 2 2 4-4" /></Ico>,
 };
 
 const NAV: { group: string; items: Item[] }[] = [
@@ -54,6 +55,12 @@ const NAV: { group: string; items: Item[] }[] = [
       { href: "/dashboard/suppliers", label: "Suppliers & Materials", icon: ICONS.suppliers, roles: ["OWNER", "PURCHASE_MANAGER", "ACCOUNTS", "PROJECT_MANAGER"] },
       { href: "/dashboard/purchase-orders", label: "Purchase Orders", icon: ICONS.orders, roles: ["OWNER", "PURCHASE_MANAGER", "ACCOUNTS", "PROJECT_MANAGER", "SITE_SUPERVISOR"] },
       { href: "/dashboard/stock", label: "Stock", icon: ICONS.stock, roles: ["OWNER", "PROJECT_MANAGER", "PURCHASE_MANAGER", "SITE_SUPERVISOR", "ACCOUNTS"] },
+    ],
+  },
+  {
+    group: "Administration",
+    items: [
+      { href: "/dashboard/users", label: "Users & Roles", icon: ICONS.users, roles: ["OWNER"] },
     ],
   },
 ];
@@ -149,6 +156,12 @@ export default function Shell({ name, role, children }: { name: string; role: st
                       <p className="text-sm text-gray-500 truncate dark:text-gray-400">{role.replace(/_/g, " ")}</p>
                     </div>
                     <div className="border-t border-gray-100 dark:border-gray-600">
+                      <Link
+                        href="/dashboard/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600"
+                      >
+                        My account
+                      </Link>
                       <button
                         onClick={() => signOut({ callbackUrl: "/login" })}
                         className="block w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600"
