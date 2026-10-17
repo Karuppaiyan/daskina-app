@@ -65,7 +65,9 @@ export async function DELETE(req: Request, { params }: Ctx) {
   );
   if (denied) return denied;
 
-  const { dpr: _d, ...old } = media;
+   // Exclude the nested dpr object from the audit log payload
+  const old = { ...media, dpr: undefined };
+
   await prisma.dprMedia.delete({ where: { id: media.id } });
   await logAudit({
     tableName: "DprMedia", recordId: media.id, action: "DELETE",

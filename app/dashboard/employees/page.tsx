@@ -41,8 +41,8 @@ export default function EmployeesPage() {
     if (Array.isArray(e)) setEmps(e);
     if (Array.isArray(s)) setSites(s);
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [fSite]);
-
+  useEffect(() => { load(); }, [fSite]);
+   
   async function create(force = false) {
     const r = await fetch("/api/employees", {
       method: "POST",

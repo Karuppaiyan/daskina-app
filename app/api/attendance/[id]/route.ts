@@ -42,7 +42,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (t.tooLong)
     return NextResponse.json({ error: "Check-in to check-out is over 20 hours. Check the times." }, { status: 400 });
 
-  const { employee: _e, ...oldRow } = old;
+const oldRow = { ...old, employee: undefined };
+
   const row = await prisma.attendance.update({
     where: { id: params.id },
     data: {

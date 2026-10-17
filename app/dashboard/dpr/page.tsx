@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { istDate } from "@/lib/attendance";
 import { uploadOne } from "@/lib/image";
+import Image from 'next/image';
 
 type Site = { id: string; name: string };
 type Media = { id: string; url: string; stage: string; type: string };
@@ -295,7 +296,7 @@ export default function DprPage() {
                       <div key={m.id} className="relative">
                         {m.type === "DOCUMENT"
                           ? <a className="block h-24 w-24 border rounded text-xs p-1 text-blue-600 underline" href={m.url} target="_blank">PDF</a>
-                          : <a href={m.url} target="_blank">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={m.url} alt="" loading="lazy" className="h-24 w-24 object-cover rounded border" /></a>}
+                          : <a href={m.url} target="_blank">{ }<Image src={m.url} alt="DPR photo" loading="lazy" className="h-24 w-24 object-cover rounded border" /></a>}
                         <button className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs" onClick={() => removePhoto(m.id)}>x</button>
                       </div>
                     ))}
